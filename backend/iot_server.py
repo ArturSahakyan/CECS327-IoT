@@ -36,6 +36,34 @@ def avg_of_field(collection, uid, field) -> float:
 
     return 0 
 
+# Average in the past 3 hours
+from datetime import datetime, timedelta, timezone
+def avg_in_recent_hours(collection, uid, field, hours=3) -> float:
+    now = datetime.now(timezone.utc)
+    three_hours_ago = now - timedelta(hours=hours)
+    three_unix = int(three_hours_ago.timestamp())
+
+    # Query the documents
+    query = {
+            "payload.parent_asset_uid": uid,
+            "$expr": { "$lte": [{ "$toInt": "$payload.timestamp" }, three_unix] } 
+            }
+    documents = collection.find(query)
+
+    # Collect each value
+    field_values = []
+    for doc in documents:
+        value = doc["payload"].get(field)
+        if value is not None:
+            field_values.append(float(value))
+
+    # Average it out if there are values
+    if field_values:
+        avg = sum(field_values) / len(field_values)
+        return avg
+
+    return 0
+
 # Matches Sensor Nicknames to Real Sensor Names in DB
 def get_sensor_name(nickname:str, db) -> str:
     meta_col = db.getCol("IoT_metadata")
@@ -66,7 +94,7 @@ def query_response(msg: int, db) -> str:
 
             # Get Average Percent
             moisture_sensor = get_sensor_name("Moisture", db)
-            avg_moist = avg_of_field(db.getCol("IoT_virtual"), FRIDGE_2,
+            avg_moist = avg_in_recent_hours(db.getCol("IoT_virtual"), FRIDGE_2,
                                      moisture_sensor)
 
             output = f"Average Relative Humidity was {avg_moist}%"
