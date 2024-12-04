@@ -14,7 +14,7 @@ from pymongo import MongoClient
 
 # Asset IDs
 FRIDGE_1 = "8ks-s9n-zpx-176"
-FRIDGE_2 = "1b8548b7-1e24-4e8a-99d5-93c6ad60c5991b8548b7-1e24-4e8a-99d5-93c6ad60c599"
+FRIDGE_2 = "1b8548b7-1e24-4e8a-99d5-93c6ad60c599"
 DISHWASHER = "7i1-n8h-5b9-u1s"
 
 # Get Average of a specified field
@@ -22,18 +22,21 @@ def avg_of_field(collection, uid, field) -> float:
     query = { "payload.parent_asset_uid": uid }
     documents = collection.find(query)
 
+    # Collect Each Value in a List
     field_values = []
     for doc in documents:
         value = doc["payload"].get(field)
         if value is not None:
             field_values.append(float(value))
 
+    # Average it out if there are values
     if field_values:
         avg = sum(field_values) / len(field_values)
         return avg
 
     return 0 
 
+# Matches Sensor Nicknames to Real Sensor Names in DB
 def get_sensor_name(nickname:str, db) -> str:
     meta_col = db.getCol("IoT_metadata")
     metadata = meta_col.find_one({"customAttributes.additionalMetadata": {"$exists": True}})
@@ -42,6 +45,7 @@ def get_sensor_name(nickname:str, db) -> str:
         print("No metadata document found")
         return ""
 
+    # Pull value from nickname
     custom = metadata.get("customAttributes", {})
     additional = custom.get("additionalMetadata", {})
     sensor = additional.get(nickname)
@@ -51,16 +55,32 @@ def get_sensor_name(nickname:str, db) -> str:
 
     return sensor
 
+# Respond to Each of the 3 Possible Queries
 def query_response(msg: int, db) -> str:
     output = ""
 
     # Respond Per MSG Codes commented at the top of the code
     match msg:
         case 1:
-            output = "Kitchen Fridge has a lot of moisture"
+            output = ""
+
+            # Get Average Percent
+            moisture_sensor = get_sensor_name("Moisture", db)
+            avg_moist = avg_of_field(db.getCol("IoT_virtual"), FRIDGE_2,
+                                     moisture_sensor)
+
+            output = f"Average Relative Humidity was {avg_moist}%"
+
             return output
         case 2:
-            output = "A lot of water consumed per cycle"
+            output = ""
+
+            # Average Water Consumption
+            avg_water = avg_of_field(db.getCol("IoT_virtual"), DISHWASHER,
+                                     "WaterConsumptionSensor")
+
+            output = f"Dishwasher consumes {avg_water} gallons per cycle"
+
             return output
         case 3:
             output = ""
@@ -74,7 +94,7 @@ def query_response(msg: int, db) -> str:
 
             # Avoid magic numbers
             volt_draw = 120
-            print(f1_avg, f2_avg, dw_avg)
+
             # Calc F1 KWH
             f1_kwh = f1_avg * volt_draw # Power in Watts
             f1_kwh /= 1000 # Convert to kWh
@@ -103,6 +123,7 @@ def query_response(msg: int, db) -> str:
 
     return output
 
+# Network Connection Values
 MAX_CONNECTIONS = 5
 RECV_BYTES = 1024
 
@@ -117,6 +138,7 @@ def validate_server() -> Tuple[str, int]:
         exit()
 
     try:
+        # Pull PORT from environment or ask if N/A
         host_port = int(os.getenv("PORT", -1))
         if host_port == -1:
             host_port = int(input("Enter host port: "))
@@ -146,6 +168,7 @@ def start_server(host, port, db_delegate):
                     resp = int(msg.decode())
                     client_socket.sendall(query_response(resp, db_delegate).encode())
 
+# Holds Database Object (Wrapper)
 class DBDelegate:
     def __init__(self, client):
         self.client = client

@@ -1,7 +1,6 @@
 import socket
 import ipaddress
 
-RECV_BYTES = 1024
 
 """
     MSG Codes:
@@ -10,6 +9,9 @@ RECV_BYTES = 1024
         3 - Which device consumed more electricity
 """
 
+RECV_BYTES = 1024
+
+# Menu Prompt for Queries
 def c_menu() -> int:
     print("\nPlease Pick One (Type 1, 2, or 3)")
     print("\t1. What is the average moisture inside my " 
@@ -19,6 +21,7 @@ def c_menu() -> int:
     print("\t3. Which device consumed more electricity "
           "among my three IoT devices?")
 
+    # Validate User Response
     usr = -1 
     try:
         usr = int(input("\n> ")) 
@@ -30,6 +33,7 @@ def c_menu() -> int:
 
 def start_client():
     while True:
+        # Validate IP
         ip = input("Enter IP: ")
         try:
             ipaddress.ip_address(ip)
@@ -37,6 +41,7 @@ def start_client():
             print("Invalid IP")
             continue
 
+        # Validate Port
         try:
             port = int(input("Enter Port: "))
             if port < 1 or port > 65535:
@@ -45,6 +50,7 @@ def start_client():
             print("Port Number Wrong")
             continue
 
+        # Attempt Connection to Server
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
             try:
                 client_socket.connect((ip, port))
@@ -52,6 +58,7 @@ def start_client():
                 print(f"Error {e}")
                 continue
 
+            # Prompt User to Choose a Query
             while True:
                 usr = c_menu() 
                 while usr < 1 or usr > 3:
