@@ -17,7 +17,41 @@ FRIDGE_1 = "8ks-s9n-zpx-176"
 FRIDGE_2 = "1b8548b7-1e24-4e8a-99d5-93c6ad60c5991b8548b7-1e24-4e8a-99d5-93c6ad60c599"
 DISHWASHER = "7i1-n8h-5b9-u1s"
 
-def query_response(msg: int) -> str:
+# Get Average of a specified field
+def avg_of_field(collection, uid, field) -> float:
+    query = { "payload.parent_asset_uid": uid }
+    documents = collection.find(query)
+
+    field_values = []
+    for doc in documents:
+        value = doc["payload"].get(field)
+        if value is not None:
+            field_values.append(float(value))
+
+    if field_values:
+        avg = sum(field_values) / len(field_values)
+        return avg
+
+    return 0 
+
+def get_sensor_name(nickname:str, db) -> str:
+    meta_col = db.getCol("IoT_metadata")
+    metadata = meta_col.find_one({"customAttributes.additionalMetadata": {"$exists": True}})
+
+    if not metadata:
+        print("No metadata document found")
+        return ""
+
+    custom = metadata.get("customAttributes", {})
+    additional = custom.get("additionalMetadata", {})
+    sensor = additional.get(nickname)
+    if not sensor:
+        print("No sensor found")
+        return ""
+
+    return sensor
+
+def query_response(msg: int, db) -> str:
     output = ""
 
     # Respond Per MSG Codes commented at the top of the code
@@ -29,7 +63,42 @@ def query_response(msg: int) -> str:
             output = "A lot of water consumed per cycle"
             return output
         case 3:
-            output = "fridge 2 consumed most energy"
+            output = ""
+            # Find Average Current Used
+            f1_avg = avg_of_field(db.getCol("IoT_virtual"), FRIDGE_1, "Ammeter")
+            dw_avg = avg_of_field(db.getCol("IoT_virtual"), DISHWASHER, "Ammeter-Washer")
+
+            # Find Sensor Name from Metadata for Fridge 2
+            f2_sensor = get_sensor_name("Current", db)
+            f2_avg = avg_of_field(db.getCol("IoT_virtual"), FRIDGE_2, f2_sensor)
+
+            # Avoid magic numbers
+            volt_draw = 120
+            print(f1_avg, f2_avg, dw_avg)
+            # Calc F1 KWH
+            f1_kwh = f1_avg * volt_draw # Power in Watts
+            f1_kwh /= 1000 # Convert to kWh
+
+            # Calc F2 KWH
+            f2_kwh = f2_avg * volt_draw
+            f2_kwh /= 1000
+
+            # Calc DW KWH
+            dw_kwh = dw_avg * volt_draw
+            dw_kwh /= 1000
+
+            # Calculate Largest Consumption
+            largest = max(dw_kwh, f1_kwh, f2_kwh)
+            if largest == dw_kwh:
+                output = "Dishwasher"
+            if largest == f1_kwh:
+                output = "Fridge 1"
+            if largest == f2_kwh:
+                output = "Fridge 2"
+
+            output += " has consumed the most electricity"
+            output += "\nConsumed: " + str(largest) + " kWh"
+
             return output
 
     return output
@@ -75,12 +144,15 @@ def start_server(host, port, db_delegate):
 
                     # MSG is guaranteed to be valid int already
                     resp = int(msg.decode())
-                    client_socket.sendall(query_response(resp).encode())
+                    client_socket.sendall(query_response(resp, db_delegate).encode())
 
 class DBDelegate:
     def __init__(self, client):
         self.client = client
         self.db = client["test"] 
+    
+    def getCol(self, name: str):
+        return self.db[name]
 
 if __name__ == "__main__":
     # Initialize MongoDB
@@ -90,6 +162,7 @@ if __name__ == "__main__":
     client = MongoClient("mongodb+srv://"+db_user+":"+db_pass+
                          "@cecs327-cluster.sjfta.mongodb.net/"+
                          "?retryWrites=true&w=majority&appName=cecs327-cluster")
+
     db_delegate = DBDelegate(client)
     
 
