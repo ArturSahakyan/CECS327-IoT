@@ -187,6 +187,7 @@ def start_server(host, port, db_delegate):
         while True:
             client_socket, address = server_socket.accept()
             with client_socket:
+                print("Successfully connected new client...")
                 while True:
                     msg = client_socket.recv(RECV_BYTES)
                     if not msg:
