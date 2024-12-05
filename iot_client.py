@@ -61,9 +61,13 @@ def start_client():
             # Prompt User to Choose a Query
             while True:
                 usr = c_menu() 
-                while usr < 1 or usr > 3:
+                while usr < 1 or usr > 4:
                     print("\nInvalid Input")
                     usr = c_menu()
+
+                if usr == 4:
+                    client_socket.close()
+                    exit()
 
                 client_socket.sendall(str(usr).encode())
                 resp = client_socket.recv(RECV_BYTES)
