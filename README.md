@@ -1,5 +1,5 @@
 # CECS327-IoT
-Python scripts written to handle communication between Dataniz IoT systems and MongoDB database. Apart of CECS327 class @ CSULB.
+Python scripts written to handle communication between Dataniz IoT systems and MongoDB database. A part of CECS327 class @ CSULB.
 
 ## Database
 First you will need a MongoDB database using Atlas that's already connected to Dataniz. Make sure to remember the username and password for the connection string as you will need it later
